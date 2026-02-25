@@ -1,0 +1,49 @@
+<?php
+
+namespace App\Tests;
+
+use App\MongoDBFunctionalTestCase;
+use App\Document\SearchableUser;
+use Doctrine\ODM\MongoDB\DocumentManager;
+use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
+
+class GeneratedDocumentTest extends KernelTestCase
+{
+    use MongoDBFunctionalTestCase;
+
+    public function setup(): void
+    {
+        self::bootKernel();
+        /** @var DocumentManager $dm */
+        $dm = self::$kernel->getContainer()
+            ->get('doctrine_mongodb')
+            ->getManager();
+
+        $schemaManager = $dm->getSchemaManager();
+        $schemaManager->dropDocumentCollection(SearchableUser::class);
+    }
+
+    public function testGeneratedDocument()
+    {
+        self::bootKernel();
+        /** @var DocumentManager $dm */
+        $dm = self::$kernel->getContainer()
+            ->get('doctrine_mongodb')
+            ->getManager();
+
+        $schemaManager = $dm->getSchemaManager();
+
+        $schemaManager->createDocumentCollection(SearchableUser::class);
+        $schemaManager->createDocumentSearchIndexes(SearchableUser::class);
+        $iterator = $dm->getDocumentCollection(SearchableUser::class)->listSearchIndexes();
+
+        while ($current = $iterator->current()) {
+            $indexes[$current['name']] = $current['latestDefinition']['mappings'] ?? [];
+            $iterator->next();
+        }
+
+        $expected = json_decode('{{ data|json_encode|raw }}', true);
+
+        $this->assertSame($expected, $indexes);
+    }
+}

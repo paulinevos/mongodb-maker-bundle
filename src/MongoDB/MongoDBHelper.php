@@ -6,19 +6,25 @@ namespace Doctrine\Bundle\MongoDBMakerBundle\MongoDB;
 
 use DateTime;
 use DateTimeImmutable;
+use DateTimeInterface;
 use Doctrine\ODM\MongoDB\DocumentManager;
+use Doctrine\ODM\MongoDB\Mapping\Attribute\EmbedMany;
+use Doctrine\ODM\MongoDB\Mapping\Attribute\EmbedOne;
 use Doctrine\ODM\MongoDB\Mapping\ClassMetadata;
 use Doctrine\ODM\MongoDB\Types\Type;
 use Doctrine\Persistence\ManagerRegistry;
 use Doctrine\Persistence\Mapping\AbstractClassMetadataFactory;
+use MongoDB\BSON\ObjectId;
 use ReflectionClass;
 use ReflectionException;
 use ReflectionNamedType;
+use ReflectionProperty;
 use Symfony\Bundle\MakerBundle\Str;
 use Symfony\Bundle\MakerBundle\Util\ClassNameDetails;
 use Symfony\Component\Uid\Uuid;
 use Throwable;
 
+use function array_filter;
 use function array_first;
 use function array_flip;
 use function array_keys;
@@ -27,6 +33,7 @@ use function assert;
 use function count;
 use function explode;
 use function implode;
+use function in_array;
 use function sort;
 use function sprintf;
 use function str_contains;
@@ -232,5 +239,64 @@ final class MongoDBHelper
         }
 
         return sprintf('Type::%s', $constants[$fieldType]);
+    }
+
+    /**
+     * Given a property, make a best-effort guess for its search index type.
+     */
+    public static function guessSearchIndexTypeForProperty(ReflectionProperty $property): string|null
+    {
+        if (! $property->hasType()) {
+            return null;
+        }
+
+        $type = $property->getType();
+        assert($type instanceof ReflectionNamedType);
+        $typeString = (string) $type;
+
+        if ($type->isBuiltin()) {
+            if ($typeString === 'array' && self::hasEmbeddingAttribute($property)) {
+                return 'embeddedDocuments';
+            }
+
+            return self::deriveSearchIndexTypeFromNativeType($typeString);
+        }
+
+        if ($typeString === Uuid::class) {
+            return 'uuid';
+        }
+
+        if ($typeString === ObjectId::class) {
+            return 'objectId';
+        }
+
+        if (in_array($typeString, [DateTime::class, DateTimeImmutable::class, DateTimeInterface::class])) {
+            return 'date';
+        }
+
+        if (self::hasEmbeddingAttribute($property)) {
+            return 'document';
+        }
+
+        return null;
+    }
+
+    private static function deriveSearchIndexTypeFromNativeType(string $type): string|null
+    {
+        return match ($type) {
+            'bool' => 'bool',
+            'float', 'int' => 'number',
+            'string' => 'string',
+            'object' => 'document',
+            default => null,
+        };
+    }
+
+    private static function hasEmbeddingAttribute(ReflectionProperty $property): bool
+    {
+        return ! empty(array_filter(
+            $property->getAttributes(),
+            static fn ($attr) => in_array($attr->getName(), [EmbedMany::class, EmbedOne::class]),
+        ));
     }
 }

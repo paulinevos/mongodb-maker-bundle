@@ -15,22 +15,24 @@ namespace Doctrine\Bundle\MongoDBMakerBundle\Tests\MongoDB;
 
 use DateTime;
 use DateTimeImmutable;
+use DateTimeInterface;
 use Doctrine\Bundle\MongoDBMakerBundle\MongoDB\MongoDBHelper;
 use Doctrine\ODM\MongoDB\Configuration;
 use Doctrine\ODM\MongoDB\DocumentManager;
+use Doctrine\ODM\MongoDB\Mapping\Attribute as ODM;
 use Doctrine\ODM\MongoDB\Mapping\Driver\AttributeDriver;
 use Doctrine\ODM\MongoDB\Types\Type;
 use Doctrine\Persistence\ManagerRegistry;
 use Doctrine\Persistence\ObjectManager;
 use Generator;
+use MongoDB\BSON\ObjectId;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
+use ReflectionClass;
 use ReflectionException;
+use ReflectionProperty;
 use Symfony\Component\Uid\Uuid;
-
-use function class_exists;
-use function get_debug_type;
 
 class MongoDBHelperTest extends TestCase
 {
@@ -213,6 +215,82 @@ class MongoDBHelperTest extends TestCase
         $this->assertSame('Type::STRING', MongoDBHelper::getTypeConstant(Type::STRING));
         $this->assertNull(MongoDBHelper::getTypeConstant('unknown_type'));
     }
+
+    #[DataProvider('guessSearchIndexTypeForPropertyDataProvider')]
+    public function testGuessSearchIndexTypeForProperty(ReflectionProperty $property, string|null $expected): void
+    {
+        $this->assertSame($expected, MongoDBHelper::guessSearchIndexTypeForProperty($property));
+    }
+
+    public static function guessSearchIndexTypeForPropertyDataProvider(): Generator
+    {
+        $class = new ReflectionClass(TypeMockClass::class);
+
+        yield 'bool property' => [
+            $class->getProperty('bool'),
+            'bool',
+        ];
+
+        yield 'string property' => [
+            $class->getProperty('string'),
+            'string',
+        ];
+
+        yield 'float property' => [
+            $class->getProperty('float'),
+            'number',
+        ];
+
+        yield 'int property' => [
+            $class->getProperty('int'),
+            'number',
+        ];
+
+        yield 'Uuid property' => [
+            $class->getProperty('uuid'),
+            'uuid',
+        ];
+
+        yield 'ObjectId property' => [
+            $class->getProperty('someObjectId'),
+            'objectId',
+        ];
+
+        yield 'DateTime' => [
+            $class->getProperty('dateTime'),
+            'date',
+        ];
+
+        yield 'DateTimeImmutable property' => [
+            $class->getProperty('dateTimeImmutable'),
+            'date',
+        ];
+
+        yield 'DateTimeInterface property' => [
+            $class->getProperty('dateTimeInterface'),
+            'date',
+        ];
+
+        yield 'array of objects property' => [
+            $class->getProperty('arrayOfEmbeddedDocuments'),
+            'embeddedDocuments',
+        ];
+
+        yield 'embedded document property' => [
+            $class->getProperty('embeddedDocument'),
+            'document',
+        ];
+
+        yield 'nested arrays property' => [
+            $class->getProperty('nestedArrays'),
+            null,
+        ];
+
+        yield 'mixed property' => [
+            $class->getProperty('mixed'),
+            null,
+        ];
+    }
 }
 
 class CustomType extends Type
@@ -221,4 +299,32 @@ class CustomType extends Type
     {
         return 'foo';
     }
+}
+
+class TypeMockClass
+{
+    public bool $bool;
+    public string $string;
+    public float $float;
+    public int $int;
+    public Uuid $uuid;
+    public ObjectId $someObjectId;
+    public DateTime $dateTime;
+    public DateTimeImmutable $dateTimeImmutable;
+    public DateTimeInterface $dateTimeInterface;
+
+    /** @var string[] */
+    public array $arrayOfStrings;
+
+    /** @var object[] */
+    #[ODM\EmbedMany]
+    public array $arrayOfEmbeddedDocuments;
+
+    #[ODM\EmbedOne]
+    public object $embeddedDocument;
+
+    /** @var array<string[]>  */
+    public array $nestedArrays;
+
+    public mixed $mixed;
 }

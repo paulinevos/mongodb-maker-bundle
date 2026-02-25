@@ -25,6 +25,8 @@ class MakeIndexTest extends MakerTestCase
     {
         return self::buildMakerTest()
             ->preRun(static function (MakerTestRunner $runner) use ($withDatabase): void {
+                $runner->runConsole('doctrine:mongodb:schema:update', ['--force' => true]);
+
                 if (! $withDatabase) {
                     return;
                 }
@@ -38,6 +40,16 @@ class MakeIndexTest extends MakerTestCase
                 $runner->copy(
                     sprintf('make-index/documents/User.php'),
                     sprintf('src/Document/User.php'),
+                );
+
+                $runner->copy(
+                    sprintf('make-index/documents/SearchableUser.php'),
+                    sprintf('src/Document/SearchableUser.php'),
+                );
+
+                $runner->copy(
+                    sprintf('utils/MongoDBFunctionalTestCase.php'),
+                    sprintf('src/MongoDBFunctionalTestCase.php'),
                 );
             });
     }
@@ -55,7 +67,7 @@ class MakeIndexTest extends MakerTestCase
                     $runner->runMaker([
                         // document class name
                         'User',
-                        // index should not be unique
+                        // should be a regular index
                         '',
                         // add an index on `lastName`
                         '1',
@@ -80,7 +92,7 @@ class MakeIndexTest extends MakerTestCase
                     $runner->runMaker([
                         // document class name
                         'User',
-                        // index should not be unique
+                        // should be a regular index
                         '',
                         // add an index on `lastName`
                         '1',
@@ -89,7 +101,7 @@ class MakeIndexTest extends MakerTestCase
                         // create another index
                         'y',
                         // index should be unique
-                        'y',
+                        'Unique',
                         // add an index on `firstName`
                         '0',
                         // `desc` order for `firstName`
@@ -115,7 +127,7 @@ class MakeIndexTest extends MakerTestCase
                     $runner->runMaker([
                         // document class name
                         'User',
-                        // index should be unique
+                        // should be a regular index
                         '',
                         // select `firstName` and `lastName` as keys for the index
                         '0,1',
@@ -135,6 +147,29 @@ class MakeIndexTest extends MakerTestCase
                     ]);
                 }),
         ];
+
+        yield 'it creates search indexes' => [
+            self::createMakeIndexTest()
+                ->run(static function (MakerTestRunner $runner): void {
+                    $runner->runMaker([
+                        // document class name
+                        'SearchableUser',
+                        // should be a search index
+                        'Search',
+                        // Default index name
+                        '',
+                        // should be statically mapped
+                        'n',
+                        'hobbies,friends',
+                    ]);
+
+                    self::runSearchIndexTest($runner, [
+                        'default' => [
+                            'fields' => ['hobbies' => [], 'friends' => ['type' => 'embeddedDocuments']],
+                        ],
+                    ]);
+                }),
+        ];
     }
 
     /** @param array<string, mixed> $data */
@@ -143,6 +178,17 @@ class MakeIndexTest extends MakerTestCase
         $runner->renderTemplateFile(
             'make-index/GeneratedIndexesTest.php.twig',
             'tests/GeneratedIndexesTest.php',
+            ['data' => $data],
+        );
+
+        $runner->runTests();
+    }
+
+    private static function runSearchIndexTest(MakerTestRunner $runner, array $data = []): void
+    {
+        $runner->renderTemplateFile(
+            'make-index/GeneratedSearchIndexesTest.php.twig',
+            'tests/GeneratedSearchIndexesTest.php',
             ['data' => $data],
         );
 

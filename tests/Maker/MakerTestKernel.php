@@ -10,6 +10,8 @@ use Symfony\Bundle\MakerBundle\Test\MakerTestKernel as MakerBundleTestKernel;
 use Symfony\Component\Config\Loader\LoaderInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 
+use function getenv;
+
 class MakerTestKernel extends MakerBundleTestKernel
 {
     public function registerBundles(): iterable
@@ -24,10 +26,11 @@ class MakerTestKernel extends MakerBundleTestKernel
         parent::registerContainerConfiguration($loader);
 
         $loader->load(static function (ContainerBuilder $container): void {
+            $uri = getenv('MONGODB_URI') ?: 'mongodb://localhost:27017';
             $container->loadFromExtension('doctrine_mongodb', [
                 'default_connection' => 'default',
                 'connections' => [
-                    'default' => ['server' => 'mongodb://localhost:27017'],
+                    'default' => ['server' => $uri],
                 ],
                 'document_managers' => [
                     'default' => ['auto_mapping' => true],

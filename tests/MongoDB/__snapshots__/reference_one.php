@@ -15,6 +15,6 @@ class Article
     #[ODM\Field(type: 'string')]
     public string $title;
 
-    #[ODM\ReferenceOne(targetDocument: User::class, inversedBy: 'articles')]
-    public ?User $author = null;
+    #[ODM\ReferenceOne(targetDocument: SearchableUser::class, inversedBy: 'articles')]
+    public ?SearchableUser $author = null;
 }

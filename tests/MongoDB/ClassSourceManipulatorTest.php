@@ -59,7 +59,7 @@ PHP;
         $sourceCode = $this->getBaseDocumentSource();
 
         $manipulator = new ClassSourceManipulator($sourceCode);
-        $manipulator->addReferenceOne('author', 'App\\Document\\User', true, ['inversedBy' => 'articles']);
+        $manipulator->addReferenceOne('author', 'App\\Document\\SearchableUser', true, ['inversedBy' => 'articles']);
 
         $result = $manipulator->getSourceCode();
 
